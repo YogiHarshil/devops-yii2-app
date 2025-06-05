@@ -1,0 +1,50 @@
+- hosts: webserver
+  become: yes
+
+  tasks:
+    - name: Install Docker
+      apt:
+        name: docker.io
+        state: present
+        update_cache: yes
+
+    - name: Install Docker Compose
+      get_url:
+        url: https://github.com/docker/compose/releases/download/1.29.2/docker-compose-`uname -s`-`uname -m`
+        dest: /usr/local/bin/docker-compose
+        mode: '0755'
+
+    - name: Install NGINX
+      apt:
+        name: nginx
+        state: present
+
+    - name: Create NGINX reverse proxy config
+      copy:
+        src: nginx.conf
+        dest: /etc/nginx/sites-available/yii2
+      notify: Reload nginx
+
+    - name: Enable site
+      file:
+        src: /etc/nginx/sites-available/yii2
+        dest: /etc/nginx/sites-enabled/yii2
+        state: link
+
+    - name: Init Docker Swarm
+      shell: docker swarm init
+      ignore_errors: yes
+
+    - name: Deploy stack
+      copy:
+        src: docker-stack.yml
+        dest: /home/ubuntu/docker-stack.yml
+
+    - name: Deploy Yii2 app
+      shell: docker stack deploy -c /home/ubuntu/docker-stack.yml yii2_app
+
+  handlers:
+    - name: Reload nginx
+      service:
+        name: nginx
+        state: reloaded
